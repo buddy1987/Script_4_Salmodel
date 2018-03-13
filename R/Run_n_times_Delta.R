@@ -41,7 +41,6 @@ for (i in 1:length(df$no))
   writeLines(dh1, con = paste0(here::here(),"/input_delta/","DH_2015","_",df$no[i],".dat"))
 }
 
-
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Section: TẠO FILE THỦY VĂN THEO SỐ LẦN OPERATION OF CLCB SLUICES
 # Purpose:
@@ -75,8 +74,6 @@ for (i in 1:length(no))
   fv1 = gsub(pattern = "FFFFF",paste0("TV_HD_SAL_1000","_",no[i],".dat"),fv1)
   writeLines(fv1, con = paste0(here::here(),"/Fvao/","Fvao","_",no[i],".txt"))
 }
-
-
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Section: Ghep các file chạy thành phần hour timeseries_HHH;QQQ;SSS
@@ -113,7 +110,10 @@ df_HH = gather(df_HH,mc,value,-h,-d,-m,-y)
 df_HH = na.omit(df_HH)
 
 # LỌC 10 DIỂM ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
+## Lọc 10 điểm
+df = read_excel(paste0(here::here(),"/rawdata/","ds_Export_Mc_RU.xlsx"),sheet = 4)
+diem  = paste0("mc",df$MC)
+df_HH = subset(df_HH,mc %in% diem)
 ## tinh max, min, tb daily 
 df_d = df_HH %>%
      group_by(y,m,d,mc) %>%
@@ -127,6 +127,22 @@ df_d = spread(df_d,name,value)
 df_d$date = as.Date(paste(df_d$d,df_d$m,df_d$y,sep = "-"), format = "%d-%m-%Y")
 df_d = df_d[,-c(1:4)]
 write.table(df_d, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_H_daily",pa,".csv"), sep = ",", row.names = F)
+## Vẽ biểu đồ đặc trưng
+df_d = gather(df_d,mc,value,-date)
+df_d = separate(df_d,mc,into = c("mc","type"))
+
+lplotr <- function(x, na.rm = TRUE, ...){
+  sta_list = unique(x$mc)
+  for (i in seq_along(sta_list)) {
+    p <-ggplot(subset(x,x$mc == sta_list[i]),aes(date,value,colour = type))
+    plots = p + geom_line()+
+      ggtitle(paste("Dien bien mực nước tại MC",sta_list[i],pa))+
+      scale_y_continuous("unit(m)")
+    setwd(paste0(here::here(),"/figs/"))
+    ggsave(plots,filename= paste("10D_H",sta_list[i],"_",pa,".png",sep=""),width = 22, height = 11,scale = 0.5)
+  }
+}
+lplotr(df_d)
 ## tinh max, min, tb thang
 df_m = df_HH %>%
   group_by(y,m,mc) %>%
@@ -138,15 +154,6 @@ df_m$mc = NULL
 df_m$dt = NULL
 df_m = spread(df_m,name,value)
 write.table(df_m, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_H_m",pa,".csv"), sep = ",", row.names = F)
-
-
-
-
-
-
-
-
-
 
 
 # GHÉP FILE QQQ
@@ -175,7 +182,9 @@ write.table(df_HH, file = paste0(path_out,"/","df_Q_",pa,".csv"), sep = ",", row
 df_HH = gather(df_HH,mc,value,-h,-d,-m,-y)
 df_HH = na.omit(df_HH)
 # LỌC 10 DIỂM ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
+df = read_excel(paste0(here::here(),"/rawdata/","ds_Export_Mc_RU.xlsx"),sheet = 4)
+diem  = paste0("mc",df$MC)
+df_HH = subset(df_HH,mc %in% diem)
 ## tinh max, min, tb daily 
 df_d = df_HH %>%
   group_by(y,m,d,mc) %>%
@@ -189,6 +198,23 @@ df_d = spread(df_d,name,value)
 df_d$date = as.Date(paste(df_d$d,df_d$m,df_d$y,sep = "-"), format = "%d-%m-%Y")
 df_d = df_d[,-c(1:4)]
 write.table(df_d, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_Q_daily",pa,".csv"), sep = ",", row.names = F)
+## Vẽ biểu đồ đặc trưng
+df_d = gather(df_d,mc,value,-date)
+df_d = separate(df_d,mc,into = c("mc","type"))
+
+lplotr <- function(x, na.rm = TRUE, ...){
+  sta_list = unique(x$mc)
+  for (i in seq_along(sta_list)) {
+    p <-ggplot(subset(x,x$mc == sta_list[i]),aes(date,value,colour = type))
+    plots = p + geom_line()+
+      ggtitle(paste("Dien bien dòng chảy tại MC",sta_list[i],pa))+
+      scale_y_continuous("unit(m3/s)")
+    setwd(paste0(here::here(),"/figs/"))
+    ggsave(plots,filename= paste("10D_Q",sta_list[i],"_",pa,".png",sep=""),width = 22, height = 11,scale = 0.5)
+  }
+}
+lplotr(df_d)
+
 ## tinh max, min, tb thang
 df_m = df_HH %>%
   group_by(y,m,mc) %>%
@@ -200,8 +226,6 @@ df_m$mc = NULL
 df_m$dt = NULL
 df_m = spread(df_m,name,value)
 write.table(df_m, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_Q_m",pa,".csv"), sep = ",", row.names = F)
-
-
 
 
 # GHÉP FILE SSS
@@ -229,6 +253,10 @@ write.table(df_HH, file = paste0(path_out,"/","df_S_",pa,".csv"), sep = ",", row
 df_HH = gather(df_HH,mc,value,-h,-d,-m,-y)
 df_HH = na.omit(df_HH)
 # LỌC 10 DIỂM ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+df = read_excel(paste0(here::here(),"/rawdata/","ds_Export_Mc_RU.xlsx"),sheet = 4)
+diem  = paste0("mc",df$MC)
+df_HH = subset(df_HH,mc %in% diem)
+## tinh max, min, tb daily 
 ## tinh max, min, tb daily 
 df_d = df_HH %>%
   group_by(y,m,d,mc) %>%
@@ -242,6 +270,24 @@ df_d = spread(df_d,name,value)
 df_d$date = as.Date(paste(df_d$d,df_d$m,df_d$y,sep = "-"), format = "%d-%m-%Y")
 df_d = df_d[,-c(1:4)]
 write.table(df_d, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_S_daily",pa,".csv"), sep = ",", row.names = F)
+## Vẽ biểu đồ đặc trưng
+df_d = gather(df_d,mc,value,-date)
+df_d = separate(df_d,mc,into = c("mc","type"))
+
+lplotr <- function(x, na.rm = TRUE, ...){
+  sta_list = unique(x$mc)
+  for (i in seq_along(sta_list)) {
+    p <-ggplot(subset(x,x$mc == sta_list[i]),aes(date,value,colour = type))
+    plots = p + geom_line()+
+      ggtitle(paste("Dien bien Mặn tại MC",sta_list[i],pa))+
+      scale_y_continuous("unit(g/l)")
+    setwd(paste0(here::here(),"/figs/"))
+    ggsave(plots,filename= paste("10D_S",sta_list[i],"_",pa,".png",sep=""),width = 22, height = 11,scale = 0.5)
+  }
+}
+lplotr(df_d)
+
+
 ## tinh max, min, tb thang
 df_m = df_HH %>%
   group_by(y,m,mc) %>%
@@ -253,6 +299,9 @@ df_m$mc = NULL
 df_m$dt = NULL
 df_m = spread(df_m,name,value)
 write.table(df_m, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_S_m",pa,".csv"), sep = ",", row.names = F)
+
+
+
 
 
 
