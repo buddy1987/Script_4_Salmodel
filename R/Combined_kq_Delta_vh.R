@@ -21,28 +21,37 @@ library(lubridate)
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Section: Ghep các file chạy thành phần hour timeseries_HHH;QQQ;SSS
-# Purpose:
+# Section: Ghep các file chạy thành phần hour timeseries_HHH;QQQ;SSS;NNN;PPP;OXY;BOD
+# Purpose: Tính toán theo ngày, tháng, và vẽ biểu đồ daily
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-## THÔNG SỐ CHUNG
-path_hd = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq")
-path_out = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep")
-pa = "PA0_dm"
+## THÔNG SỐ CHUNG CẦN THAY ĐỔI KHI CHẠY CÁC pA KHÁC NHAU
+tenpa = "Run_HDPA2.CLCBXR.VH2.2050"    # Tên thư mục phương án, chứa kq chạy
+pa = "_PA2.CLCBXR.VH2.2050"       # Tên phương án, hay loại kết quả là HD, hay WQ sẽ add vao tên files
 
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Section: Ghep các file HHHH
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-files = list.files(paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq"),pattern = "HD_SAL.HHH")[-1]
-# Load danh sach tram ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-df = read_excel(paste0(here::here(),"/rawdata/","ds_Export_Mc_RU.xlsx"),sheet = 1)
+## Các path trong script
+path_hd = paste0(here::here(),"/delta_sim/Simulation_HD_vh/",tenpa,"/kq")
+path_out = paste0(here::here(),"/delta_sim/Simulation_HD_vh/","/kq_ghep")
+path_raw = paste0(here::here(),"/rawdata/")
+## danh sach cac file
+ds = c("HHH","QQQ","OXY","BOD","NNN","PPP","SSS")
+unit = c("m","m3/s","mg/l","mg/l","mg/l","mg/l","mg/l")
+
+## Load danh sach tram ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+df_mc = read_excel(paste0(path_raw,"ds_Export_Mc_RU.xlsx"),sheet = 1)
+df_10d = read_excel(paste0(path_raw,"ds_Export_Mc_RU.xlsx"),sheet = 4)
+
+## vòng lặp
+for (j in 1:length(ds))
+{
+files = list.files(path_hd,pattern = paste0("HD_SAL.",ds[j]))[-1]
 df_HH = ""
 for (i in 1:length(files))
 {
-  df_H = read.table(paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq","/",files[i]),skip = 3,header = F)
+  df_H = read.table(paste0(path_hd,"/",files[i]),skip = 3,header = F)
   df_HH = rbind(df_HH,df_H)
 }
 ## Lay ten tram do
-n = na.omit(as.character(df$mc))
+n = na.omit(as.character(df_mc$mc))
 name = c("tt","h","d","m","y",paste0("mc",n))
 colnames(df_HH) = name
 df_HH$date = as.Date(paste(df_HH$d,df_HH$m,df_HH$y,sep = "-"), format = "%d-%m-%Y")
@@ -53,14 +62,12 @@ df_HH = df_HH[order(df_HH$date),]
 df_HH$date = NULL
 df_HH$tt = NULL
 df_HH[] <- lapply(df_HH, as.numeric)
-write.table(df_HH, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_H_",pa,".csv"), sep = ",", row.names = F)
+write.table(df_HH, file = paste0(path_out,"/",ds[j],pa,".csv"), sep = ",", row.names = F)
 df_HH = gather(df_HH,mc,value,-h,-d,-m,-y)
 df_HH = na.omit(df_HH)
-
-# LỌC 10 DIỂM ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ## Lọc 10 điểm
-df = read_excel(paste0(here::here(),"/rawdata/","ds_Export_Mc_RU.xlsx"),sheet = 4)
-diem  = paste0("mc",df$MC)
+df_10d = read_excel(paste0(path_raw,"ds_Export_Mc_RU.xlsx"),sheet = 4)
+diem  = paste0("mc",df_10d$MC)
 df_HH = subset(df_HH,mc %in% diem)
 ## tinh max, min, tb daily 
 df_d = df_HH %>%
@@ -74,23 +81,7 @@ df_d$dt = NULL
 df_d = spread(df_d,name,value)
 df_d$date = as.Date(paste(df_d$d,df_d$m,df_d$y,sep = "-"), format = "%d-%m-%Y")
 df_d = df_d[,-c(1:4)]
-write.table(df_d, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_H_daily",pa,".csv"), sep = ",", row.names = F)
-## Vẽ biểu đồ đặc trưng
-df_d = gather(df_d,mc,value,-date)
-df_d = separate(df_d,mc,into = c("mc","type"))
-
-lplotr <- function(x, na.rm = TRUE, ...){
-  sta_list = unique(x$mc)
-  for (i in seq_along(sta_list)) {
-    p <-ggplot(subset(x,x$mc == sta_list[i]),aes(date,value,colour = type))
-    plots = p + geom_line()+
-      ggtitle(paste("Dien bien mực nước tại MC",sta_list[i],pa))+
-      scale_y_continuous("unit(m)")
-    setwd(paste0(here::here(),"/figs/"))
-    ggsave(plots,filename= paste("10D_H",sta_list[i],"_",pa,".png",sep=""),width = 22, height = 11,scale = 0.5)
-  }
-}
-lplotr(df_d)
+write.table(df_d, file = paste0(path_out,"/",paste0(ds[j],"_daily_"),pa,".csv"), sep = ",", row.names = F)
 ## tinh max, min, tb thang
 df_m = df_HH %>%
   group_by(y,m,mc) %>%
@@ -101,203 +92,36 @@ df_m$name = paste(df_m$mc,df_m$dt,sep = "-")
 df_m$mc = NULL
 df_m$dt = NULL
 df_m = spread(df_m,name,value)
-write.table(df_m, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_H_m",pa,".csv"), sep = ",", row.names = F)
-
-
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Section: Ghep các file QQQ
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-files = list.files(path_hd,pattern = "HD_SAL.QQQ")
-# Load danh sach tram ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-df = read_excel(paste0(here::here(),"/rawdata/","ds_Export_Mc_RU.xlsx"),sheet = 1)
-df_HH = ""
-for (i in 1:length(files))
-{
-  df_H = read.table(paste0(path_hd,"/",files[i]),skip = 3,header = F)
-  df_HH = rbind(df_HH,df_H)
+write.table(df_m, file = paste0(path_out,"/",paste0(ds[j],"_m_"),pa,".csv"), sep = ",", row.names = F)
 }
-## Lay ten tram do
-n = na.omit(as.character(df$mc))
-name = c("tt","h","d","m","y",paste0("mc",n))
-colnames(df_HH) = name
-df_HH$date = as.Date(paste(df_HH$d,df_HH$m,df_HH$y,sep = "-"), format = "%d-%m-%Y")
-df_HH$h = as.numeric(df_HH$h)
-df_HH = na.omit(df_HH)
-hour(df_HH$date) = df_HH$h
-df_HH = df_HH[order(df_HH$date),]
-df_HH$date = NULL
-df_HH$tt = NULL
-df_HH[] <- lapply(df_HH, as.numeric)
-write.table(df_HH, file = paste0(path_out,"/","df_Q_",pa,".csv"), sep = ",", row.names = F)
-df_HH = gather(df_HH,mc,value,-h,-d,-m,-y)
-df_HH = na.omit(df_HH)
-# LỌC 10 DIỂM ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-df = read_excel(paste0(here::here(),"/rawdata/","ds_Export_Mc_RU.xlsx"),sheet = 4)
-diem  = paste0("mc",df$MC)
-df_HH = subset(df_HH,mc %in% diem)
-## tinh max, min, tb daily 
-df_d = df_HH %>%
-  group_by(y,m,d,mc) %>%
-  summarise_each (funs(min, max,mean), value)
-colnames(df_d) = c("y","m","d","mc","min","ma","bq")
-df_d = gather(df_d,dt,value,-mc,-d,-m,-y)
-df_d$name = paste(df_d$mc,df_d$dt,sep = "-")
-df_d$mc = NULL
-df_d$dt = NULL
-df_d = spread(df_d,name,value)
-df_d$date = as.Date(paste(df_d$d,df_d$m,df_d$y,sep = "-"), format = "%d-%m-%Y")
-df_d = df_d[,-c(1:4)]
-write.table(df_d, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_Q_daily",pa,".csv"), sep = ",", row.names = F)
+####
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### 
 ## Vẽ biểu đồ đặc trưng
 df_d = gather(df_d,mc,value,-date)
 df_d = separate(df_d,mc,into = c("mc","type"))
-
 lplotr <- function(x, na.rm = TRUE, ...){
   sta_list = unique(x$mc)
   for (i in seq_along(sta_list)) {
     p <-ggplot(subset(x,x$mc == sta_list[i]),aes(date,value,colour = type))
     plots = p + geom_line()+
-      ggtitle(paste("Dien bien dòng chảy tại MC",sta_list[i],pa))+
-      scale_y_continuous("unit(m3/s)")
+      ggtitle(paste("Diễn biến",ds[j],"tại MC",sta_list[i],"_",pa))+
+      scale_y_continuous(paste0("Đơn vị (",unit[j],")"))
     setwd(paste0(here::here(),"/figs/"))
-    ggsave(plots,filename= paste("10D_Q",sta_list[i],"_",pa,".png",sep=""),width = 22, height = 11,scale = 0.5)
+    ggsave(plots,filename= paste("10D_H",sta_list[i],"_",ds[j],"_",pa,".png",sep=""),width = 22, height = 11,scale = 0.5)
   }
 }
 lplotr(df_d)
-
-## tinh max, min, tb thang
-df_m = df_HH %>%
-  group_by(y,m,mc) %>%
-  summarise_each (funs(min,max,mean), value)
-colnames(df_m) = c("y","m","mc","min","ma","bq")
-df_m = gather(df_m,dt,value,-mc,-m,-y)
-df_m$name = paste(df_m$mc,df_m$dt,sep = "-")
-df_m$mc = NULL
-df_m$dt = NULL
-df_m = spread(df_m,name,value)
-write.table(df_m, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_Q_m",pa,".csv"), sep = ",", row.names = F)
-
-
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Section: Ghep các file HHHH
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-files = list.files(path_hd,pattern = "HD_SAL.SSS")
-# Load danh sach tram ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-df = read_excel(paste0(here::here(),"/rawdata/","ds_Export_Mc_RU.xlsx"),sheet = 1)
-df_HH = ""
-for (i in 1:length(files))
-{
-  df_H = read.table(paste0(path_hd,"/",files[i]),skip = 3,header = F)
-  df_HH = rbind(df_HH,df_H)
-}
-## Lay ten tram do
-n = na.omit(as.character(df$man))
-name = c("tt","h","d","m","y",paste0("mc",n))
-colnames(df_HH) = name
-df_HH$date = as.Date(paste(df_HH$d,df_HH$m,df_HH$y,sep = "-"), format = "%d-%m-%Y")
-df_HH$h = as.numeric(df_HH$h)
-df_HH = na.omit(df_HH)
-hour(df_HH$date) = df_HH$h
-df_HH = df_HH[order(df_HH$date),]
-df_HH$date = NULL
-df_HH[] <- lapply(df_HH, as.numeric)
-write.table(df_HH, file = paste0(path_out,"/","df_S_",pa,".csv"), sep = ",", row.names = F)
-df_HH = gather(df_HH,mc,value,-h,-d,-m,-y)
-df_HH = na.omit(df_HH)
-
-# LỌC 10 DIỂM ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-df = read_excel(paste0(here::here(),"/rawdata/","ds_Export_Mc_RU.xlsx"),sheet = 4)
-diem  = paste0("mc",df$MC)
-df_HH = subset(df_HH,mc %in% diem)
-## tinh max, min, tb daily 
-df_d = df_HH %>%
-  group_by(y,m,d,mc) %>%
-  summarise_each (funs(min, max,mean), value)
-colnames(df_d) = c("y","m","d","mc","min","ma","bq")
-df_d = gather(df_d,dt,value,-mc,-d,-m,-y)
-df_d$name = paste(df_d$mc,df_d$dt,sep = "-")
-df_d$mc = NULL
-df_d$dt = NULL
-df_d = spread(df_d,name,value)
-df_d$date = as.Date(paste(df_d$d,df_d$m,df_d$y,sep = "-"), format = "%d-%m-%Y")
-df_d = df_d[,-c(1:4)]
-write.table(df_d, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_S_daily",pa,".csv"), sep = ",", row.names = F)
-## Vẽ biểu đồ đặc trưng
-df_d = gather(df_d,mc,value,-date)
-df_d = separate(df_d,mc,into = c("mc","type"))
-
-lplotr <- function(x, na.rm = TRUE, ...){
-  sta_list = unique(x$mc)
-  for (i in seq_along(sta_list)) {
-    p <-ggplot(subset(x,x$mc == sta_list[i]),aes(date,value,colour = type))
-    plots = p + geom_line()+
-      ggtitle(paste("Dien bien Mặn tại MC",sta_list[i],pa))+
-      scale_y_continuous("unit(g/l)")
-    setwd(paste0(here::here(),"/figs/"))
-    ggsave(plots,filename= paste("10D_S",sta_list[i],"_",pa,".png",sep=""),width = 22, height = 11,scale = 0.5)
-  }
-}
-lplotr(df_d)
-## tinh max, min, tb thang
-df_m = df_HH %>%
-  group_by(y,m,mc) %>%
-  summarise_each (funs(min,max,mean), value)
-colnames(df_m) = c("y","m","mc","min","ma","bq")
-df_m = gather(df_m,dt,value,-mc,-m,-y)
-df_m$name = paste(df_m$mc,df_m$dt,sep = "-")
-df_m$mc = NULL
-df_m$dt = NULL
-df_m = spread(df_m,name,value)
-write.table(df_m, file = paste0(here::here(),"/delta_sim/Simulation_HD_vh/Run_HD/kq_ghep","/","df_S_m",pa,".csv"), sep = ",", row.names = F)
-
-
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Section: Ghep các file chạy thành phần Sum: Hsum;Qsum;Ssum
-# Purpose:
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# GHÉP FILE HSUM
-files = list.files(path_hd,pattern = "HD_SAL.HSUM")
-# Load danh sach tram ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-df_HH = ""
-for (i in 1:length(files))
-{
-  df_H = read.table(paste0(path_hd,"/",files[i]),skip = 2,header = F)
-  df_HH = rbind(df_HH,df_H)
-}
-## Lay ten tram do
-name = c("Nhanh","Mcat","Hma","Hbq","Hmi","XX","YY")
-colnames(df_HH) = name
-df_HH = na.omit(df_HH)
-df_HH[] <- lapply(df_HH, as.numeric)
-df_HH = df_HH %>% 
-  group_by(Nhanh,Mcat) %>%
-  summarise(Hbq = mean(Hbq), 
-            Hmi = min(Hmi), 
-            Hma = max(Hma))
-df_HH = na.omit(df_HH)
-write.table(df_HH, file = paste0(path_out,"/","df_HSum_",pa,".csv"), sep = ",", row.names = F)
-
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# GHÉP FILE SSUM
-files = list.files(path_hd,pattern = "HD_SAL.SSUM")
-# Load danh sach tram ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-df_HH = ""
-for (i in 1:length(files))
-{
-  df_H = read.table(paste0(path_hd,"/",files[i]),skip = 2,header = F)
-  df_HH = rbind(df_HH,df_H)
-}
-## Lay ten tram do
-name = c("Nhanh","Mcat","Sma","Sbq","Smi","XX","YY")
-colnames(df_HH) = name
-df_HH = na.omit(df_HH)
-df_HH[] <- lapply(df_HH, as.numeric)
-df_HH = df_HH %>% 
-  group_by(Nhanh,Mcat) %>%
-  summarise(Sbq = mean(Sbq), 
-            Smi = min(Smi), 
-            Sma = max(Sma))
-df_HH = na.omit(df_HH)
-write.table(df_HH, file = paste0(path_out,"/","df_SSum_",pa,".csv"), sep = ",", row.names = F)
-
-
